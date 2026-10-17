@@ -50,7 +50,7 @@ function slides(): string[] {
         <div>
           <h3>Needs attention</h3>
           ${attention.length ? `<table class="sl-table small"><thead><tr><th>Part</th><th>Week</th><th>Month</th><th>Gap</th><th>Need/day</th></tr></thead><tbody>
-            ${attention.map(({ part, m }) => `<tr><th>${esc(partName(part))}</th><td>${pill(m.weekStatus)}</td><td>${pill(m.monthStatus)}</td><td class="num neg">${signed(m.mtdGap)}</td><td class="num"><b>${num(m.monthReqPerDay)}</b></td></tr>`).join('')}
+            ${attention.map(({ part, m }) => `<tr><th>${esc(partName(part))}<small>${esc(part.desc ? part.partNo : '')}</small></th><td>${pill(m.weekStatus)}</td><td>${pill(m.monthStatus)}</td><td class="num neg">${signed(m.mtdGap)}</td><td class="num"><b>${num(m.monthReqPerDay)}</b></td></tr>`).join('')}
           </tbody></table>` : '<p class="muted">All parts on track.</p>'}
           <h3>Open issues</h3>
           ${issues.length ? issues.map((i) => issueCard(i, app.data, false)).join('') : '<p class="muted">None logged.</p>'}

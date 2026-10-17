@@ -17,13 +17,14 @@ export function towerHtml(): string {
       .slice(0, 2)
       .map((x) => {
         const part = v.parts.find((pp) => pp.id === x.partId)!;
-        return `<li><span>${esc(partName(part))}</span><b class="num neg">${num(x.m.mtdGap)}</b></li>`;
+        return `<li><span>${esc(partName(part))}${part.desc && part.partNo ? ` <small class="muted">${esc(part.partNo)}</small>` : ''}</span><b class="num neg">${num(x.m.mtdGap)}</b></li>`;
       }).join('');
     const issues = openIssues(app.data, v.id);
     const overdue = issues.filter((i) => isOverdue(i)).length;
     return { rank: STATUS_RANK[s.status], html: `
       <button class="card vcard" data-act="open-vendor" data-id="${v.id}">
         <div class="title-row"><h3>${esc(v.name)}${v.sample ? ' <span class="badge ghost">Example</span>' : ''}</h3>${pill(s.status)}</div>
+        ${v.address ? `<div class="muted small vc-addr">${esc(v.address)}</div>` : ''}
         <div class="vc-main"><span class="vc-pct num">${pct(s.adherence)}</span><span class="muted small">MTD adherence · ${num(s.mtdActual)} of ${num(s.mtdRequirement)}</span></div>
         ${meter(s.adherence, s.status)}
         <div class="vc-stats">

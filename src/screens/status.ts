@@ -3,7 +3,7 @@ import { niceDate } from '../dates';
 import { dispatchLogCsv, monthlySummaryCsv, saveFile } from '../exports';
 import { esc, num, pct, signed } from '../format';
 import { app, toast, vendor } from '../state';
-import { kpi, mtdChart, partName, pill } from '../ui';
+import { kpi, mtdChart, partName, pill, vendorDetails } from '../ui';
 import type { Actions } from './types';
 
 export function statusHtml(): string {
@@ -47,6 +47,7 @@ export function statusHtml(): string {
         <tbody>${table}</tbody>
       </table></div>
     </section>
+    ${vendorDetails(v)}
     <div class="btn-row">
       <button class="btn" data-act="csv-summary">Monthly summary CSV</button>
       <button class="btn" data-act="csv-log">Dispatch log CSV</button>

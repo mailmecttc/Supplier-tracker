@@ -57,7 +57,8 @@ export function validateBackup(text: string): Data {
   if (!Array.isArray(raw.vendors)) throw new Error('Backup has no vendor list.');
   for (const v of raw.vendors as unknown[]) {
     if (!isObj(v) || typeof v.id !== 'string' || typeof v.name !== 'string' || !Array.isArray(v.parts) ||
-      !Array.isArray(v.dispatchDays) || v.dispatchDays.length !== 7) {
+      !Array.isArray(v.dispatchDays) || v.dispatchDays.length !== 7 ||
+      (v.address !== undefined && typeof v.address !== 'string') || (v.notes !== undefined && typeof v.notes !== 'string')) {
       throw new Error('A vendor in the backup is malformed.');
     }
   }

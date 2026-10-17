@@ -187,6 +187,7 @@ input.qty:focus { outline: none; border-color: var(--accent); background: var(--
 .ch-row { margin-bottom: 10px; }
 .ch-top { display: flex; justify-content: space-between; gap: 8px; font-size: 0.82rem; margin-bottom: 3px; }
 .ch-l { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-l small { color: var(--muted); }
 .ch-n { color: var(--muted); white-space: nowrap; }
 .ch-track { position: relative; height: 16px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
 .ch-req { position: absolute; left: 0; top: 0; bottom: 0; background: var(--req); border-radius: 4px; }
@@ -233,6 +234,13 @@ td.replanned { text-decoration: underline dotted; text-underline-offset: 3px; }
 .vc-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
 .worst { list-style: none; margin: 10px 0 0; padding: 0; font-size: 0.85rem; }
 .worst li { display: flex; justify-content: space-between; padding: 3px 0; border-top: 1px dashed var(--border); }
+.vc-addr { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vdetails { margin: 0; }
+.vdetails div { padding: 8px 0; border-top: 1px solid var(--border); }
+.vdetails div:first-child { border-top: 0; padding-top: 0; }
+.vdetails dt { font-size: 0.75rem; color: var(--muted); }
+.vdetails dd { margin: 2px 0 0; }
+.pre { white-space: pre-wrap; }
 
 /* ---------- setup ---------- */
 .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }

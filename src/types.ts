@@ -12,6 +12,10 @@ export interface Vendor {
   id: string;
   name: string;
   contact: string;
+  /** Plant / dispatch address. Optional: older backups do not have it. */
+  address?: string;
+  /** Free-text context: commitments, capacity caps, open reconciliations. */
+  notes?: string;
   mode: InputMode;
   /** Mon..Sun, 1 = dispatch day */
   dispatchDays: number[];

@@ -1,0 +1,13 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+# Signing material never goes in the repo
+keystore.properties
+*.jks
+*.keystore
+
+# Company files bundled only into private builds (e.g. the company report template)
+private/

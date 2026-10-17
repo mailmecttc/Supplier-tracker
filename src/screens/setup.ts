@@ -127,6 +127,8 @@ export function setupHtml(): string {
       <h3>Vendor</h3>
       <label>Name<input type="text" value="${esc(v.name)}" data-chg="v-field" data-field="name"></label>
       <label>Contact<input type="text" value="${esc(v.contact)}" data-chg="v-field" data-field="contact" placeholder="Name / phone"></label>
+      <label>Address<textarea rows="2" data-chg="v-field" data-field="address" placeholder="Plant / dispatch address">${esc(v.address)}</textarea></label>
+      <label>Notes<textarea rows="5" data-chg="v-field" data-field="notes" placeholder="Commitments, capacity, open points">${esc(v.notes)}</textarea></label>
       <label>How this vendor reports
         <select data-chg="v-field" data-field="mode">
           <option value="daily" ${v.mode === 'daily' ? 'selected' : ''}>Daily quantity (also weekly / lot dispatch)</option>

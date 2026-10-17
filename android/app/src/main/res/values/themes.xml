@@ -1,0 +1,8 @@
+<resources>
+    <!-- AppCompat parent: on Android 8 the fingerprint prompt is an AppCompat dialog and crashes without it -->
+    <style name="Theme.SupplierTracker" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_light</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>
