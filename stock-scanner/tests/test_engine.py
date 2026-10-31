@@ -90,3 +90,15 @@ def test_cli_demo(tmp_path, capsys):
     assert "BEST STOCKS RIGHT NOW" in out and "not financial advice" in out
     assert len(list(tmp_path.glob("*.html"))) == 1 and len(list(tmp_path.glob("*.csv"))) == 1
     assert main(["--list-strategies"]) == 0
+
+
+def test_india_is_default_and_rupees_use_indian_grouping():
+    from scanner.cli import build_parser
+    from scanner.util import big_money, money
+
+    assert build_parser().parse_args([]).market == "india"
+    assert money(1234567.5, "₹") == "₹12,34,567.50"
+    assert money(999.0, "₹", 0) == "₹999"
+    assert money(-150000, "₹", 0) == "-₹1,50,000"
+    assert big_money(1.85e13, "₹") == "₹18,50,000 Cr"   # ₹18.5 lakh crore
+    assert money(1234567.5, "$") == "$1,234,567.50"

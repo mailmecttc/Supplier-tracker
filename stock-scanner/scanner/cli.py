@@ -38,14 +38,15 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "examples:\n"
-            "  python -m scanner --market india\n"
+            "  python -m scanner                          (India, NSE large caps)\n"
+            "  python -m scanner --capital 500000         (also size positions for 5 lakh)\n"
+            "  python -m scanner --tickers TCS INFY HDFCBANK POLYCAB\n"
             "  python -m scanner --market us --strategy value --top 15\n"
-            "  python -m scanner --market india --tickers TCS INFY HDFCBANK --capital 500000\n"
             "  python -m scanner --demo           (offline sample with made-up data)\n"
         ),
     )
-    p.add_argument("--market", choices=sorted(MARKETS), default="us",
-                   help="which stock exchange to scan (default: us)")
+    p.add_argument("--market", choices=sorted(MARKETS), default="india",
+                   help="which stock exchange to scan (default: india)")
     p.add_argument("--strategy", choices=["auto"] + sorted(STRATEGIES), default="auto",
                    help="auto picks one from the market trend (default: auto)")
     p.add_argument("--tickers", nargs="+", metavar="SYMBOL",

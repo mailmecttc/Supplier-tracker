@@ -8,8 +8,8 @@ on:
       market:
         description: Market to scan
         type: choice
-        options: [us, india]
-        default: us
+        options: [india, us]
+        default: india
       strategy:
         description: Strategy (auto picks one from the market trend)
         type: choice

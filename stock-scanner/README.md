@@ -20,8 +20,8 @@ Needs Python 3.9+ and internet access (data comes free from Yahoo Finance).
 cd stock-scanner
 pip install -r requirements.txt
 
-python -m scanner --market india          # ~60 large caps on NSE, benchmark NIFTY 50
-python -m scanner --market us             # ~120 large caps, benchmark S&P 500
+python -m scanner                         # India (default): ~60 NSE large caps, benchmark NIFTY 50
+python -m scanner --market us             # ~120 US large caps, benchmark S&P 500
 python -m scanner --demo                  # offline sample with made-up data
 ```
 
@@ -29,17 +29,30 @@ A full scan takes 1-3 minutes the first time. Data is cached for 12 hours, so re
 Each run prints a summary and saves `reports/scan_<market>_<date>.html` (open it in a browser)
 and a `.csv` with every number.
 
+### First time on Windows, step by step
+
+1. Install Python from <https://www.python.org/downloads/>. On the first installer screen,
+   tick **"Add python.exe to PATH"**.
+2. On GitHub, open this repo, switch to the branch that has `stock-scanner/`, click
+   **Code → Download ZIP**, and unzip it.
+3. Open the unzipped `stock-scanner` folder, click the address bar, type `cmd` and press Enter.
+4. In the black window, run once: `pip install -r requirements.txt`
+5. Then run: `python -m scanner --capital 500000` (use your own amount).
+6. Open the newest `.html` file in the `reports` folder.
+
+On a Mac, use the Terminal app and `python3` / `pip3` instead of `python` / `pip`.
+
 ### More examples
 
 ```bash
 # Your own list (India symbols get ".NS" added automatically)
-python -m scanner --market india --tickers TCS INFY HDFCBANK PERSISTENT POLYCAB
+python -m scanner --tickers TCS INFY HDFCBANK PERSISTENT POLYCAB
 
 # From a file (one per line, or comma separated; # comments allowed)
-python -m scanner --market india --tickers-file my_watchlist.txt
+python -m scanner --tickers-file my_watchlist.txt
 
 # Position sizes for ₹5,00,000, risking 1% per trade
-python -m scanner --market india --capital 500000 --risk 1
+python -m scanner --capital 500000 --risk 1
 
 # Force a strategy instead of auto
 python -m scanner --market us --strategy value --top 15

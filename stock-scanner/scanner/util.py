@@ -82,18 +82,38 @@ def num(x, digits: int = 1) -> str:
     return f"{v:,.{digits}f}"
 
 
+def indian_number(x: float, digits: int = 2) -> str:
+    """Indian digit grouping: 1234567.5 -> 12,34,567.50 (lakh / crore style)."""
+    sign = "-" if x < 0 else ""
+    whole, _, frac = f"{abs(x):.{digits}f}".partition(".")
+    if len(whole) > 3:
+        head, tail = whole[:-3], whole[-3:]
+        groups = []
+        while len(head) > 2:
+            groups.insert(0, head[-2:])
+            head = head[:-2]
+        if head:
+            groups.insert(0, head)
+        whole = ",".join(groups) + "," + tail
+    return sign + whole + ("." + frac if frac else "")
+
+
 def money(x, symbol: str = "", digits: int = 2) -> str:
     v = finite(x)
     if v is None:
         return "n/a"
+    if symbol == "₹":
+        return ("-" if v < 0 else "") + symbol + indian_number(abs(v), digits)
     return f"{symbol}{v:,.{digits}f}"
 
 
 def big_money(x, symbol: str = "") -> str:
-    """Compact market-cap style formatting: 1.2T, 340B, 5.6M."""
+    """Compact market-cap style formatting: 1.2T, 340B, 5.6M (or crore for rupees)."""
     v = finite(x)
     if v is None:
         return "n/a"
+    if symbol == "₹":
+        return f"₹{indian_number(v / 1e7, 0)} Cr"
     for div, suffix in ((1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")):
         if abs(v) >= div:
             return f"{symbol}{v / div:,.1f}{suffix}"
