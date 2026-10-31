@@ -10,3 +10,10 @@ Code map: `src/calc.ts` (all calculations, pure), `src/store.ts` (IndexedDB + ba
 `src/exports.ts` (CSV/JSON), `src/screens/*` (Entry, Status, Plan, Issues, All vendors, Setup, Weekly review).
 
 No company data is in the code. Vendors, parts and plans are entered in the app.
+
+---
+
+## Stock scanner (separate tool)
+
+`stock-scanner/` is an unrelated Python tool that ranks stocks using fundamental and technical analysis
+and adapts to the market trend. See [stock-scanner/README.md](stock-scanner/README.md).
