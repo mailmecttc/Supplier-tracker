@@ -1,0 +1,91 @@
+name: Stock scan
+
+# Manual only: open the Actions tab, pick "Stock scan", click "Run workflow".
+# The HTML/CSV report is attached to the run as an artifact, and the summary is shown on the run page.
+on:
+  workflow_dispatch:
+    inputs:
+      market:
+        description: Market to scan
+        type: choice
+        options: [india, us]
+        default: india
+      strategy:
+        description: Strategy (auto picks one from the market trend)
+        type: choice
+        options: [auto, defensive, balanced, growth, value, momentum]
+        default: auto
+      universe:
+        description: Which stocks (core = ~60 biggest, extended = ~220 large + mid caps)
+        type: choice
+        options: [core, extended]
+        default: core
+      cap:
+        description: Company size to keep
+        type: choice
+        options: [any, large, mid, large+mid, small]
+        default: any
+      max_pe:
+        description: Maximum P/E, e.g. 40 (blank = no limit)
+        required: false
+        default: ""
+      tickers:
+        description: Optional symbols separated by spaces (blank = built-in list)
+        required: false
+        default: ""
+      capital:
+        description: Optional capital for position sizing, e.g. 500000
+        required: false
+        default: ""
+      top:
+        description: How many best stocks to show
+        required: false
+        default: "10"
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: stock-scanner
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: stock-scanner/requirements.txt
+      - run: pip install -r requirements.txt pytest
+      - run: python -m pytest -q
+      - name: Run scan
+        env:
+          MARKET: ${{ inputs.market }}
+          STRATEGY: ${{ inputs.strategy }}
+          UNIVERSE: ${{ inputs.universe }}
+          CAP: ${{ inputs.cap }}
+          MAX_PE: ${{ inputs.max_pe }}
+          TICKERS: ${{ inputs.tickers }}
+          CAPITAL: ${{ inputs.capital }}
+          TOP: ${{ inputs.top }}
+        run: |
+          args=(--market "$MARKET" --strategy "$STRATEGY" --universe "${UNIVERSE:-core}" --top "${TOP:-10}" --out reports)
+          if [ -n "$MAX_PE" ]; then args+=(--max-pe "$MAX_PE"); fi
+          case "$CAP" in
+            large+mid) args+=(--cap large mid) ;;
+            large|mid|small) args+=(--cap "$CAP") ;;
+          esac
+          if [ -n "$TICKERS" ]; then read -ra symbols <<< "$TICKERS"; args+=(--tickers "${symbols[@]}"); fi
+          if [ -n "$CAPITAL" ]; then args+=(--capital "$CAPITAL"); fi
+          mkdir -p reports
+          python -m scanner "${args[@]}" | tee reports/summary.txt
+          { echo '```'; cat reports/summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stock-scan-${{ inputs.market }}
+          path: stock-scanner/reports/
+          if-no-files-found: ignore
