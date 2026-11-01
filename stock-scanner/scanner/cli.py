@@ -41,6 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  python -m scanner                          (India, NSE large caps)\n"
             "  python -m scanner --capital 500000         (also size positions for 5 lakh)\n"
             "  python -m scanner --tickers TCS INFY HDFCBANK POLYCAB\n"
+            "  python -m scanner --universe extended --cap large mid --max-pe 40 --strategy value\n"
             "  python -m scanner --market us --strategy value --top 15\n"
             "  python -m scanner --demo           (offline sample with made-up data)\n"
         ),
@@ -49,6 +50,12 @@ def build_parser() -> argparse.ArgumentParser:
                    help="which stock exchange to scan (default: india)")
     p.add_argument("--strategy", choices=["auto"] + sorted(STRATEGIES), default="auto",
                    help="auto picks one from the market trend (default: auto)")
+    p.add_argument("--universe", choices=["core", "extended"], default="core",
+                   help="core = the ~60 biggest companies; extended = ~220 large and mid caps (default: core)")
+    p.add_argument("--max-pe", type=float, metavar="N",
+                   help="only keep stocks with a trailing P/E at or below N (loss-makers are left out)")
+    p.add_argument("--cap", nargs="+", choices=["large", "mid", "small"], metavar="SIZE",
+                   help="only keep these company sizes: large, mid and/or small")
     p.add_argument("--tickers", nargs="+", metavar="SYMBOL",
                    help="scan these symbols instead of the built-in list")
     p.add_argument("--tickers-file", metavar="PATH",
@@ -78,8 +85,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.risk <= 0 or args.risk > 5:
         print("--risk should be between 0 and 5 (percent).", file=sys.stderr)
         return 2
+    if args.max_pe is not None and args.max_pe <= 0:
+        print("--max-pe should be a positive number, e.g. 40.", file=sys.stderr)
+        return 2
 
-    from .engine import run_scan
+    from .engine import Screen, run_scan
     from .report import print_console, write_csv, write_html
 
     market = MARKETS[args.market]
@@ -90,8 +100,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         from .demo import DEMO_BENCHMARK, DEMO_TICKERS, DemoProvider
 
         provider = DemoProvider()
-        market = replace(market, name="Demo market", benchmark=DEMO_BENCHMARK, benchmark_name="Demo index",
-                         suffix="", min_avg_traded_value=0.0)
+        # Made-up companies are priced in dollars, so use the US currency and size bands.
+        market = replace(MARKETS["us"], key="demo", name="Demo market", benchmark=DEMO_BENCHMARK,
+                         benchmark_name="Demo index", min_avg_traded_value=0.0)
         tickers = list(DEMO_TICKERS)
     else:
         from .data import YahooProvider
@@ -103,11 +114,13 @@ def main(argv: Optional[List[str]] = None) -> int:
             tickers += args.tickers
         if args.tickers_file:
             tickers += _read_tickers_file(args.tickers_file)
-        tickers = normalize_tickers(tickers, market) if tickers else list(market.universe)
+        tickers = normalize_tickers(tickers, market) if tickers else market.tickers(args.universe)
 
+    screen = Screen(max_pe=args.max_pe,
+                    caps=tuple(c.capitalize() for c in dict.fromkeys(args.cap or [])))
     scan = run_scan(tickers, market, args.strategy, provider, capital=args.capital,
-                    risk_pct=args.risk / 100.0, benchmark_symbol=benchmark, demo=args.demo)
-    if not scan.ranked:
+                    risk_pct=args.risk / 100.0, benchmark_symbol=benchmark, demo=args.demo, screen=screen)
+    if not scan.scored:
         print("No stock could be analysed. Check your internet connection and the ticker symbols.",
               file=sys.stderr)
         return 1

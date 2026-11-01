@@ -55,6 +55,8 @@ PROFILES = {
 }
 
 DEMO_TICKERS: List[str] = list(PROFILES)
+# Large unless listed here (US bands: large >= $10B, mid $2-10B, small < $2B)
+DEMO_MARKET_CAPS = {"CHEAP": 6e9, "INDEBTED": 4e9, "LOSSMAKER": 1.2e9, "HOTSTOCK": 8e9}
 
 
 def _series(seed: int, n: int, drift: float, vol: float, late_drift: float, start: float) -> np.ndarray:
@@ -104,7 +106,7 @@ class DemoProvider:
                 name, sector, *_ignored, overrides = PROFILES[t]
                 price = float(prices[t]["Close"].iloc[-1])
                 info = {"longName": name, "sector": sector, "currency": "USD", "currentPrice": price,
-                        "marketCap": 5e10}
+                        "marketCap": DEMO_MARKET_CAPS.get(t, 5e10)}
                 info.update(overrides)
                 if info.get("forwardEps"):
                     info["targetMeanPrice"] = round(price * 1.12, 2)

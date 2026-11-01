@@ -1,10 +1,11 @@
 """Runs the scan: loads data, scores every stock, applies filters and ranks them."""
 from __future__ import annotations
 
+import statistics
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 from .config import (
     AUTO_STRATEGY, MIN_PILLAR_FOR_BUY, RATING_THRESHOLDS, STRATEGIES, Market, Strategy,
@@ -13,9 +14,30 @@ from .fundamental import FundamentalResult, analyze_fundamental
 from .plan import TradePlan, make_plan
 from .regime import Regime, detect_regime
 from .technical import TechnicalResult, analyze_technical
-from .util import num, pct
+from .util import big_money, finite, num, pct
 
 RATING_ORDER = {"TOP PICK": 0, "BUY": 1, "WATCH": 2, "AVOID": 3}
+CAP_SIZES = ("Large", "Mid", "Small")
+
+
+@dataclass(frozen=True)
+class Screen:
+    """Your own filters. Stocks that fail them are left out of the ranking entirely."""
+
+    max_pe: Optional[float] = None
+    caps: Tuple[str, ...] = ()   # any of CAP_SIZES; empty = all sizes
+
+    @property
+    def active(self) -> bool:
+        return self.max_pe is not None or bool(self.caps)
+
+    def describe(self, market: Market) -> str:
+        parts = []
+        if self.max_pe is not None:
+            parts.append(f"P/E up to {self.max_pe:g}")
+        if self.caps:
+            parts.append(" + ".join(self.caps) + f" caps ({market.cap_note})")
+        return ", ".join(parts)
 
 
 @dataclass
@@ -32,6 +54,10 @@ class StockResult:
     excluded: List[str] = field(default_factory=list)
     notes: List[str] = field(default_factory=list)
     plan: Optional[TradePlan] = None
+    cap: Optional[str] = None            # Large / Mid / Small
+    pe: Optional[float] = None           # trailing P/E (None if loss-making or unknown)
+    screened_out: List[str] = field(default_factory=list)  # failed --max-pe / --cap
+    cap_ok: bool = True                  # passed the --cap filter (used for sector stats)
 
 
 @dataclass
@@ -46,10 +72,20 @@ class ScanResult:
     capital: Optional[float] = None
     risk_pct: float = 0.01
     demo: bool = False
+    screen: Screen = Screen()
+
+    @property
+    def scored(self) -> List[StockResult]:
+        return [s for s in self.stocks if s.score is not None]
 
     @property
     def ranked(self) -> List[StockResult]:
-        return [s for s in self.stocks if s.score is not None]
+        """Scored stocks that pass your filters, best first."""
+        return [s for s in self.scored if not s.screened_out]
+
+    @property
+    def screened(self) -> List[StockResult]:
+        return [s for s in self.scored if s.screened_out]
 
     def picks(self, top: int) -> List[StockResult]:
         return [s for s in self.ranked if s.rating in ("TOP PICK", "BUY")][:top]
@@ -89,6 +125,70 @@ def apply_filters(strategy: Strategy, fund: FundamentalResult, tech: TechnicalRe
     if min_traded_value and traded is not None and traded < min_traded_value:
         reasons.append("Low trading volume (hard to buy/sell)")
     return reasons
+
+
+def cap_category(market_cap, market: Market) -> Optional[str]:
+    v = finite(market_cap)
+    if v is None or v <= 0:
+        return None
+    large, mid = market.cap_bands
+    return "Large" if v >= large else "Mid" if v >= mid else "Small"
+
+
+def trailing_pe(fund_metrics: dict, price: Optional[float]) -> Optional[float]:
+    """Trailing P/E, or price / trailing EPS when Yahoo leaves the ratio out. None if loss-making."""
+    eps = fund_metrics.get("trailing_eps")
+    if eps is not None and eps <= 0:
+        return None
+    pe = finite(fund_metrics.get("pe"))
+    if pe is not None and pe > 0:
+        return pe
+    if eps and price:
+        return price / eps
+    return None
+
+
+def apply_screen(result: StockResult, screen: Screen, market: Market) -> None:
+    fm = result.fundamental.metrics or {}
+    if screen.caps:
+        if result.cap is None:
+            result.screened_out.append("Market cap unknown")
+            result.cap_ok = False
+        elif result.cap not in screen.caps:
+            result.screened_out.append(
+                f"{result.cap} cap ({big_money(fm.get('market_cap'), market.symbol)})")
+            result.cap_ok = False
+    if screen.max_pe is not None:
+        if result.pe is None:
+            eps = fm.get("trailing_eps")
+            result.screened_out.append("Loss-making, no P/E" if eps is not None and eps <= 0
+                                       else "P/E not available")
+        elif result.pe > screen.max_pe:
+            result.screened_out.append(f"P/E {result.pe:.1f} is above {screen.max_pe:g}")
+
+
+def sector_summary(scan: "ScanResult") -> List[dict]:
+    """Median P/E per sector (stocks of your chosen sizes), cheapest sector first."""
+    max_pe = scan.screen.max_pe
+    groups: Dict[str, List[StockResult]] = {}
+    for s in scan.scored:
+        if s.cap_ok:
+            groups.setdefault(s.sector, []).append(s)
+    rows = []
+    for sector, items in groups.items():
+        pes = [s.pe for s in items if s.pe is not None]
+        under = [s for s in items if s.pe is not None and (max_pe is None or s.pe <= max_pe)]
+        good = sorted((s for s in under if not s.screened_out and s.rating != "AVOID"),
+                      key=lambda s: (RATING_ORDER[s.rating], -(s.score or 0)))
+        rows.append({
+            "sector": sector,
+            "stocks": len(items),
+            "median_pe": statistics.median(pes) if pes else None,
+            "under_limit": len(under),
+            "best": good[:4],
+        })
+    rows.sort(key=lambda r: (r["median_pe"] is None, r["median_pe"] or 0))
+    return rows
 
 
 def rate(score: float, fund_score: Optional[float], tech_score: Optional[float], regime: Regime):
@@ -131,7 +231,8 @@ def action_for(rating: str, rsi: Optional[float], regime: Regime) -> str:
 
 
 def score_stock(ticker: str, prices, info: dict, benchmark, strategy: Strategy, regime: Regime,
-                market: Market, capital: Optional[float], risk_pct: float) -> StockResult:
+                market: Market, capital: Optional[float], risk_pct: float,
+                screen: Screen = Screen()) -> StockResult:
     fund = analyze_fundamental(info, strategy)
     beta = fund.metrics.get("beta") if fund.metrics else None
     tech = analyze_technical(prices, strategy, benchmark, beta)
@@ -145,6 +246,9 @@ def score_stock(ticker: str, prices, info: dict, benchmark, strategy: Strategy, 
         fundamental=fund,
         technical=tech,
     )
+    result.cap = cap_category(fm.get("market_cap"), market)
+    result.pe = trailing_pe(fm, result.price)
+    apply_screen(result, screen, market)
     if tech.score is None:
         result.excluded = ["Not enough price history"]
         return result
@@ -183,6 +287,7 @@ def run_scan(
     benchmark_symbol: Optional[str] = None,
     demo: bool = False,
     log: Callable[[str], None] = _log,
+    screen: Screen = Screen(),
 ) -> ScanResult:
     tickers = list(dict.fromkeys(tickers))  # de-duplicate, keep order
     bench_symbol = benchmark_symbol or market.benchmark
@@ -214,7 +319,7 @@ def run_scan(
             failed[t] = "no price data (wrong symbol or delisted?)"
             continue
         res = score_stock(t, histories[t], infos.get(t) or {}, bench_close, strategy, regime,
-                          market, capital, risk_pct)
+                          market, capital, risk_pct, screen)
         if res.score is None:
             failed[t] = "; ".join(res.excluded) or "could not be scored"
         stocks.append(res)
@@ -223,5 +328,5 @@ def run_scan(
     return ScanResult(
         market=market, strategy=strategy, requested_strategy=strategy_name, regime=regime,
         stocks=stocks, failed=failed, generated_at=datetime.now(), capital=capital,
-        risk_pct=risk_pct, demo=demo,
+        risk_pct=risk_pct, demo=demo, screen=screen,
     )

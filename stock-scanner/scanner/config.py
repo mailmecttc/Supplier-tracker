@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from .universes import INDIA_LARGE_CAPS, US_LARGE_CAPS
+from .universes import INDIA_LARGE_CAPS, INDIA_MORE_LARGE_AND_MID, US_LARGE_CAPS, US_MID_CAPS
 
 # RSI -> score curves. The default rewards healthy momentum (RSI 50-60) and
 # penalises overbought (>70) and collapsing (<30) stocks.
@@ -133,16 +133,31 @@ class Market:
     symbol: str
     suffix: str                 # appended to bare tickers, e.g. ".NS"
     min_avg_traded_value: float  # 20-day average daily traded value, in local currency
-    universe: Tuple[str, ...]
+    universe: Tuple[str, ...]           # "core": the biggest, most liquid companies
+    extra_universe: Tuple[str, ...] = ()  # added by --universe extended (more large + mid caps)
+    # Market-cap bands in local currency: (large cap from, mid cap from). Below = small cap.
+    cap_bands: Tuple[float, float] = (1e10, 2e9)
+    cap_note: str = ""
+
+    def tickers(self, universe: str = "core") -> List[str]:
+        if universe == "extended":
+            return list(dict.fromkeys(self.universe + self.extra_universe))
+        return list(self.universe)
 
 
 MARKETS: Dict[str, Market] = {
     "us": Market(
         key="us", name="United States", benchmark="^GSPC", benchmark_name="S&P 500",
         currency="USD", symbol="$", suffix="", min_avg_traded_value=5e6, universe=US_LARGE_CAPS,
+        extra_universe=US_MID_CAPS, cap_bands=(1e10, 2e9),
+        cap_note="Large ≥ $10B, Mid $2-10B, Small < $2B",
     ),
     "india": Market(
         key="india", name="India (NSE)", benchmark="^NSEI", benchmark_name="NIFTY 50",
         currency="INR", symbol="₹", suffix=".NS", min_avg_traded_value=5e7, universe=INDIA_LARGE_CAPS,
+        extra_universe=INDIA_MORE_LARGE_AND_MID,
+        # Close to AMFI's 2026 cut-offs (top 100 = large, next 150 = mid); AMFI resets them twice a year.
+        cap_bands=(1.05e12, 3.4e11),
+        cap_note="Large ≥ ₹1,05,000 Cr, Mid ₹34,000-1,05,000 Cr, Small < ₹34,000 Cr (≈ AMFI 2026)",
     ),
 }

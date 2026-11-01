@@ -102,3 +102,77 @@ def test_india_is_default_and_rupees_use_indian_grouping():
     assert money(-150000, "₹", 0) == "-₹1,50,000"
     assert big_money(1.85e13, "₹") == "₹18,50,000 Cr"   # ₹18.5 lakh crore
     assert money(1234567.5, "$") == "$1,234,567.50"
+
+
+# ------------------------------------------------------------------ P/E and size filters
+def screened_demo(**screen_kwargs):
+    from scanner.engine import Screen
+
+    market = replace(MARKETS["us"], benchmark=DEMO_BENCHMARK, benchmark_name="Demo index", min_avg_traded_value=0)
+    return run_scan(DEMO_TICKERS, market, "value", DemoProvider(), log=lambda m: None,
+                    screen=Screen(**screen_kwargs))
+
+
+def test_pe_and_cap_screen():
+    scan = screened_demo(max_pe=40, caps=("Large", "Mid"))
+    by = {s.ticker: s for s in scan.stocks}
+    assert any("P/E 90.0 is above 40" in r for r in by["HOTSTOCK"].screened_out)
+    assert any("P/E 45.0" in r for r in by["FALLING"].screened_out)
+    lm = by["LOSSMAKER"].screened_out
+    assert any("Small cap" in r for r in lm) and any("Loss-making" in r for r in lm)
+    assert by["CHEAP"].cap == "Mid" and not by["CHEAP"].screened_out
+    ranked = scan.ranked
+    assert {s.ticker for s in ranked} == {"QUALITY", "LEADER", "BANK", "CHEAP", "INDEBTED"}
+    assert all(s.pe <= 40 and s.cap in ("Large", "Mid") for s in ranked)
+    assert len(scan.screened) == 3 and len(scan.scored) == len(DEMO_TICKERS)
+
+
+def test_no_screen_keeps_everything():
+    scan = screened_demo()
+    assert not scan.screened and len(scan.ranked) == len(DEMO_TICKERS)
+
+
+def test_cap_category_and_pe_fallback():
+    from scanner.engine import cap_category, trailing_pe
+
+    india = MARKETS["india"]
+    assert cap_category(2e12, india) == "Large"        # ₹2,00,000 Cr
+    assert cap_category(5e11, india) == "Mid"          # ₹50,000 Cr
+    assert cap_category(1e11, india) == "Small"        # ₹10,000 Cr
+    assert cap_category(None, india) is None
+    assert trailing_pe({"pe": 18.0, "trailing_eps": 5.0}, 90.0) == 18.0
+    assert trailing_pe({"pe": None, "trailing_eps": 5.0}, 100.0) == 20.0   # Yahoo left the ratio out
+    assert trailing_pe({"pe": None, "trailing_eps": -2.0}, 100.0) is None  # loss-making
+
+
+def test_sector_summary_sorted_by_median_pe():
+    from scanner.engine import sector_summary
+
+    scan = screened_demo(max_pe=40, caps=("Large", "Mid"))
+    rows = sector_summary(scan)
+    medians = [r["median_pe"] for r in rows]
+    assert medians == sorted(medians)
+    tech = next(r for r in rows if r["sector"] == "Technology")
+    assert tech["stocks"] == 2 and tech["median_pe"] == 62.0 and tech["under_limit"] == 1
+    assert [b.ticker for b in tech["best"]] == ["LEADER"]
+    # the small-cap loss-maker is not counted in any sector
+    assert sum(r["stocks"] for r in rows) == 7
+    for r in rows:
+        assert all(b.rating != "AVOID" and not b.screened_out for b in r["best"])
+
+
+def test_extended_universe_and_cli_filters(tmp_path, capsys):
+    india = MARKETS["india"]
+    core, extended = india.tickers("core"), india.tickers("extended")
+    assert len(extended) > 200 and len(set(extended)) == len(extended) and set(core) < set(extended)
+
+    assert main(["--demo", "--max-pe", "40", "--cap", "large", "mid", "--strategy", "value",
+                 "--out", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "Your filters: P/E up to 40, Large + Mid caps" in out
+    assert "SECTOR VALUATIONS" in out and "Left out by your filters: 3 stocks" in out
+    html = next(tmp_path.glob("*.html")).read_text()
+    assert "Sector valuations" in html and "below limit" in html
+    rows = list(csv.DictReader(next(tmp_path.glob("*.csv")).open()))
+    assert {r["ticker"] for r in rows if r["left_out_because"]} == {"HOTSTOCK", "FALLING", "LOSSMAKER"}
+    assert main(["--demo", "--max-pe", "0"]) == 2

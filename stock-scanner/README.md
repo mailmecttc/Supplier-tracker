@@ -59,12 +59,33 @@ python -m scanner --market us --strategy value --top 15
 python -m scanner --list-strategies
 ```
 
+### Value screen: P/E limit, company size and sector P/E
+
+```bash
+# ~220 large + mid caps, keep only P/E <= 40, rank with the value strategy
+python -m scanner --universe extended --cap large mid --max-pe 40 --strategy value --top 15
+```
+
+* `--max-pe 40` keeps stocks whose trailing P/E is 40 or less. Loss-making companies have no P/E
+  and are left out.
+* `--cap large mid` keeps large and mid caps. Sizes come from each company's live market cap,
+  using cut-offs close to AMFI's 2026 lists: large ≥ ₹1,05,000 Cr, mid ₹34,000-1,05,000 Cr,
+  small below that (US: large ≥ $10B, mid $2-10B). AMFI resets its cut-offs every six months;
+  change `cap_bands` in `scanner/config.py` if needed.
+* `--universe extended` adds ~150 more large and mid caps to the core ~60 (India). Use it
+  whenever you want mid caps, because the core list is almost all large caps.
+* The report adds a **Sector valuations** table: the median P/E of each sector (for the sizes you
+  chose), how many of its stocks are under your P/E limit, and the best-rated ones.
+* Stocks left out by these filters are not ranked, but they are still in the CSV
+  (`left_out_because` column).
+
 ### Run it on GitHub instead (no install)
 
 Open the repo's **Actions** tab, choose **Stock scan**, then **Run workflow**. Pick the
-market and strategy. When it finishes, the summary is on the run page and the HTML/CSV
-report is under **Artifacts**. (The workflow appears in the Actions tab once this folder
-is on the default branch.)
+market and strategy, and optionally the stock list (`core` / `extended`), company size and
+maximum P/E. When it finishes, the summary is on the run page and the HTML/CSV report is
+under **Artifacts**. (The workflow appears in the Actions tab once this folder is on the
+default branch.)
 
 ## How it decides
 
@@ -170,6 +191,6 @@ tests/            run with: python -m pytest
   some companies; scores then use whatever is available, and stocks with too little company data
   are scored mostly on price and penalised.
 * Valuation uses fixed ranges, not sector averages. Tech will look "expensive" next to banks.
-* The built-in lists are large caps and are not official index membership lists. Renamed or
-  delisted symbols are skipped with a message; pass your own list for mid/small caps.
+* The built-in lists are not official index membership lists. Renamed or
+  delisted symbols are skipped with a message; pass your own list for small caps.
 * Scores rank stocks against each other today. They don't predict returns.

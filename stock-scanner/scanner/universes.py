@@ -54,3 +54,57 @@ INDIA_LARGE_CAPS = tuple(
         "BHARTIARTL", "ULTRACEMCO", "GRASIM",
     )
 )
+
+# Added by --universe extended. Mostly AMFI large and mid caps outside the core list.
+# The size category shown in reports is worked out from each company's live market cap,
+# so it does not matter if a company has moved between categories since this list was made.
+INDIA_MORE_LARGE_AND_MID = tuple(
+    f"{s}.NS"
+    for s in (
+        # Banks
+        "CANBK", "PNB", "UNIONBANK", "BANKINDIA", "INDIANB", "IDFCFIRSTB", "FEDERALBNK", "AUBANK",
+        "YESBANK", "BANDHANBNK",
+        # NBFCs, housing and government finance
+        "CHOLAFIN", "MUTHOOTFIN", "MANAPPURAM", "SBICARD", "LICHSGFIN", "PFC", "RECLTD", "IRFC", "HUDCO",
+        "IREDA", "SUNDARMFIN", "M&MFIN", "LTF", "ABCAPITAL", "POONAWALLA", "BAJAJHLDNG",
+        # Insurance, AMCs, exchanges, fintech
+        "LICI", "ICICIGI", "ICICIPRULI", "MFSL", "POLICYBZR", "PAYTM", "HDFCAMC", "NAM-INDIA", "BSE",
+        "CDSL", "MCX", "ANGELONE",
+        # IT and internet
+        "PERSISTENT", "COFORGE", "MPHASIS", "LTTS", "OFSS", "KPITTECH", "TATAELXSI", "TATATECH", "NAUKRI",
+        "SWIGGY", "NYKAA",
+        # Capital goods, electricals, defence, railways
+        "CUMMINSIND", "POLYCAB", "KEI", "BHARATFORG", "SUPREMEIND", "ASTRAL", "APLAPOLLO", "THERMAX",
+        "BHEL", "CGPOWER", "SCHAEFFLER", "TIMKEN", "AIAENG", "GMRAIRPORT", "CONCOR", "BDL", "MAZDOCK",
+        "COCHINSHIP", "SOLARINDS", "SUZLON", "WAAREEENER", "DIXON", "VOLTAS", "BLUESTARCO", "KAYNES",
+        "CROMPTON", "HONAUT", "IRCTC", "RVNL", "NBCC",
+        # Consumer
+        "COLPAL", "MARICO", "EMAMILTD", "JUBLFOOD", "PAGEIND", "VBL", "UNITDSPR", "RADICO", "BATAINDIA",
+        "KALYANKJIL", "PATANJALI", "BERGEPAIN", "INDHOTEL",
+        # Autos and auto parts
+        "TVSMOTOR", "HYUNDAI", "ASHOKLEY", "MOTHERSON", "BOSCHLTD", "MRF", "BALKRISIND", "APOLLOTYRE",
+        "EXIDEIND", "SONACOMS", "UNOMINDA", "ESCORTS", "TIINDIA",
+        # Pharma and hospitals
+        "LUPIN", "AUROPHARMA", "ALKEM", "TORNTPHARM", "ZYDUSLIFE", "MANKIND", "GLENMARK", "BIOCON",
+        "IPCALAB", "ABBOTINDIA", "LAURUSLABS", "FORTIS", "SYNGENE",
+        # Chemicals, fertilisers, cement, metals
+        "SRF", "PIIND", "UPL", "DEEPAKNTR", "COROMANDEL", "TATACHEM", "NAVINFLUOR", "ACC", "AMBUJACEM",
+        "SHREECEM", "DALBHARAT", "JKCEMENT", "JINDALSTEL", "SAIL", "NMDC", "NATIONALUM", "HINDZINC",
+        "VEDL", "JSL",
+        # Power, oil and gas
+        "TATAPOWER", "ADANIPOWER", "ADANIGREEN", "ADANIENSOL", "NTPCGREEN", "NHPC", "TORNTPOWER",
+        "JSWENERGY", "GAIL", "PETRONET", "HINDPETRO", "OIL", "IGL", "ATGL",
+        # Real estate
+        "DLF", "GODREJPROP", "OBEROIRLTY", "PRESTIGE", "PHOENIXLTD", "LODHA",
+        # Telecom
+        "IDEA", "INDUSTOWER", "TATACOMM", "BHARTIHEXA",
+    )
+)
+
+US_MID_CAPS = (
+    "DKS", "WSM", "OC", "LII", "EME", "FIX", "TOL", "PHM", "ALLY", "EWBC", "WAL", "JEF", "RGA", "UNM",
+    "EXEL", "NBIX", "MEDP", "UTHR", "DECK", "CROX", "BURL", "CASY", "USFD", "SAIA", "XPO", "JBHT",
+    "AYI", "ATR", "CSL", "GGG", "ITT", "TTC", "CHE", "EHC", "MANH", "PSTG", "NTNX", "DT", "AKAM",
+    "FFIV", "GDDY", "DUOL", "ELF", "CAG", "SJM", "CPB", "HRL", "TPR", "RL", "LKQ", "GPC", "ALV",
+    "LEA", "SWKS", "TER", "ENTG", "CIEN", "COHR",
+)

@@ -15,6 +15,20 @@ on:
         type: choice
         options: [auto, defensive, balanced, growth, value, momentum]
         default: auto
+      universe:
+        description: Which stocks (core = ~60 biggest, extended = ~220 large + mid caps)
+        type: choice
+        options: [core, extended]
+        default: core
+      cap:
+        description: Company size to keep
+        type: choice
+        options: [any, large, mid, large+mid, small]
+        default: any
+      max_pe:
+        description: Maximum P/E, e.g. 40 (blank = no limit)
+        required: false
+        default: ""
       tickers:
         description: Optional symbols separated by spaces (blank = built-in list)
         required: false
@@ -51,11 +65,19 @@ jobs:
         env:
           MARKET: ${{ inputs.market }}
           STRATEGY: ${{ inputs.strategy }}
+          UNIVERSE: ${{ inputs.universe }}
+          CAP: ${{ inputs.cap }}
+          MAX_PE: ${{ inputs.max_pe }}
           TICKERS: ${{ inputs.tickers }}
           CAPITAL: ${{ inputs.capital }}
           TOP: ${{ inputs.top }}
         run: |
-          args=(--market "$MARKET" --strategy "$STRATEGY" --top "${TOP:-10}" --out reports)
+          args=(--market "$MARKET" --strategy "$STRATEGY" --universe "${UNIVERSE:-core}" --top "${TOP:-10}" --out reports)
+          if [ -n "$MAX_PE" ]; then args+=(--max-pe "$MAX_PE"); fi
+          case "$CAP" in
+            large+mid) args+=(--cap large mid) ;;
+            large|mid|small) args+=(--cap "$CAP") ;;
+          esac
           if [ -n "$TICKERS" ]; then read -ra symbols <<< "$TICKERS"; args+=(--tickers "${symbols[@]}"); fi
           if [ -n "$CAPITAL" ]; then args+=(--capital "$CAPITAL"); fi
           mkdir -p reports

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from .config import MIN_PILLAR_FOR_BUY, RATING_THRESHOLDS
-from .engine import ScanResult, StockResult
+from .engine import ScanResult, StockResult, sector_summary
 from .plan import ATR_MULTIPLE, MAX_STOP_PCT, MIN_STOP_PCT, REWARD_MULTIPLE
 from .util import big_money, finite, money, num, pct
 
@@ -35,6 +35,46 @@ def strengths(s: StockResult, n: int = 3) -> List[str]:
 
 def concerns(s: StockResult, n: int = 2) -> List[str]:
     return s.notes + s.fundamental.concerns[:n] + s.technical.concerns[:n]
+
+
+def _tick(ticker: str, suffix: str) -> str:
+    """TCS.NS -> TCS for compact lists."""
+    return ticker[: -len(suffix)] if suffix and ticker.endswith(suffix) else ticker
+
+
+def _pe(s: StockResult) -> str:
+    if s.pe is not None:
+        return num(s.pe)
+    eps = (s.fundamental.metrics or {}).get("trailing_eps")
+    return "loss" if eps is not None and eps <= 0 else "n/a"
+
+
+def _screen_line(scan: ScanResult) -> str:
+    sc = scan.screen
+    if not sc.active:
+        return ""
+    return (f"Your filters: {sc.describe(scan.market)}. {len(scan.ranked)} stocks pass, "
+            f"{len(scan.screened)} left out.")
+
+
+def print_sectors(scan: ScanResult) -> None:
+    rows = sector_summary(scan)
+    if not rows:
+        return
+    limit = scan.screen.max_pe
+    sizes = " + ".join(scan.screen.caps) + " caps" if scan.screen.caps else "stocks"
+    print(f"\nSECTOR VALUATIONS (median P/E of the {sizes} scanned, cheapest first)")
+    lim = f"P/E≤{limit:g}" if limit is not None else "With P/E"
+    header = f"   {'Sector':<24}{'Stocks':>6}  {'Median P/E':>10}  {lim:>8}   Best value stocks (rating, score)"
+    print(header)
+    print("   " + "-" * (len(header) - 3))
+    for r in rows:
+        mark = "✓" if limit is not None and r["median_pe"] is not None and r["median_pe"] <= limit else " "
+        best = ", ".join(f"{_tick(b.ticker, scan.market.suffix)} ({b.rating} {b.score:.0f})" for b in r["best"])
+        print(f" {mark} {_short(r['sector'], 23):<24}{r['stocks']:>6}  {num(r['median_pe']):>10}  "
+              f"{r['under_limit']:>4}/{r['stocks']:<3}   {best or '-'}")
+    if limit is not None:
+        print(f"   ✓ = sector's median P/E is at or below {limit:g}")
 
 
 def _plan_line(s: StockResult, sym: str) -> str:
@@ -69,19 +109,21 @@ def print_console(scan: ScanResult, top: int = 10, paths: Optional[List[Path]] =
     auto = " (auto-selected for this market)" if scan.requested_strategy == "auto" else ""
     print(f"\nStrategy: {st.title}{auto}")
     print(f"   {st.description}")
+    if scan.screen.active:
+        print(_screen_line(scan))
 
     picks = scan.picks(top)
     print()
     if picks:
         print(f"BEST STOCKS RIGHT NOW ({len(picks)} rated BUY or better, best first)")
-        header = (f"{'#':>2}  {'Ticker':<14}{'Name':<26}{'Score':>5} {'Fund':>4} {'Tech':>4}  "
-                  f"{'Rating':<9}{'Price':>11}  {'Action'}")
+        header = (f"{'#':>2}  {'Ticker':<14}{'Name':<24}{'Score':>5} {'Fund':>4} {'Tech':>4} {'P/E':>6} "
+                  f"{'Cap':<6}{'Rating':<9}{'Price':>12}  {'Action'}")
         print(header)
         print("-" * len(header))
         for i, s in enumerate(picks, 1):
-            print(f"{i:>2}  {s.ticker:<14}{_short(s.name, 25):<26}{_fmt_score(s.score):>5} "
-                  f"{_fmt_score(s.fundamental.score):>4} {_fmt_score(s.technical.score):>4}  "
-                  f"{s.rating:<9}{money(s.price, sym):>11}  {s.action}")
+            print(f"{i:>2}  {s.ticker:<14}{_short(s.name, 23):<24}{_fmt_score(s.score):>5} "
+                  f"{_fmt_score(s.fundamental.score):>4} {_fmt_score(s.technical.score):>4} {_pe(s):>6} "
+                  f"{(s.cap or '-'):<6}{s.rating:<9}{money(s.price, sym):>12}  {s.action}")
         print("\nWHY THESE STOCKS")
         for i, s in enumerate(picks, 1):
             print(f"\n{i}. {s.ticker} - {s.name} ({s.sector})   score {s.score:.0f}/100")
@@ -101,7 +143,10 @@ def print_console(scan: ScanResult, top: int = 10, paths: Optional[List[Path]] =
               + ", ".join(f"{s.ticker} ({s.score:.0f})" for s in watch))
     avoided = [s for s in scan.ranked if s.rating == "AVOID"]
     if avoided:
-        print(f"Avoided: {len(avoided)} stocks (reasons are in the CSV/HTML report)")
+        print(f"Avoided: {len(avoided)} stock{'s' if len(avoided) != 1 else ''} (reasons are in the CSV/HTML report)")
+    if scan.screened:
+        print(f"Left out by your filters: {len(scan.screened)} stock{'s' if len(scan.screened) != 1 else ''} (listed in the CSV)")
+    print_sectors(scan)
     if scan.failed:
         print(f"Skipped (no data): {', '.join(sorted(scan.failed))}")
     if paths:
@@ -122,7 +167,7 @@ CSV_METRICS_T = ["rsi", "sma50", "sma200", "atr", "ret_1m", "ret_3m", "ret_6m", 
 
 def write_csv(scan: ScanResult, path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    head = ["rank", "ticker", "name", "sector", "price", "score", "fundamental_score", "technical_score",
+    head = ["rank", "ticker", "name", "sector", "cap", "pe", "left_out_because", "price", "score", "fundamental_score", "technical_score",
             "rating", "action", "entry_low", "entry_high", "stop", "target", "shares",
             "strengths", "concerns", "excluded_because"]
     head += [f"f_{k}" for k in CSV_METRICS_F] + [f"t_{k}" for k in CSV_METRICS_T]
@@ -137,7 +182,8 @@ def write_csv(scan: ScanResult, path: Path) -> Path:
                 v = finite(x)
                 return "" if v is None else round(v, d)
 
-            row = [i, s.ticker, s.name, s.sector, r(s.price, 2), r(s.score, 1), r(s.fundamental.score, 1),
+            row = [i, s.ticker, s.name, s.sector, s.cap or "", r(s.pe, 2), " | ".join(s.screened_out),
+                   r(s.price, 2), r(s.score, 1), r(s.fundamental.score, 1),
                    r(s.technical.score, 1), s.rating, s.action,
                    r(p.entry_low, 2) if p else "", r(p.entry_high, 2) if p else "",
                    r(p.stop, 2) if p else "", r(p.target, 2) if p else "",
@@ -174,7 +220,8 @@ def _card(i: int, s: StockResult, sym: str) -> str:
     pros = "".join(f"<li>{_e(x)}</li>" for x in strengths(s, 4))
     cons = "".join(f"<li>{_e(x)}</li>" for x in concerns(s, 3))
     stats = [
-        ("P/E", num(fm.get("pe"))), ("Fwd P/E", num(fm.get("forward_pe"))), ("ROE", pct(fm.get("roe"))),
+        ("Size", f"{s.cap} cap" if s.cap else "n/a"),
+        ("P/E", _pe(s)), ("Fwd P/E", num(fm.get("forward_pe"))), ("ROE", pct(fm.get("roe"))),
         ("Op. margin", pct(fm.get("operating_margin"))), ("Revenue growth", pct(fm.get("revenue_growth"), sign=True)),
         ("Debt/Equity", num(fm.get("debt_to_equity"), 2)), ("Div. yield", pct(fm.get("dividend_yield"), 1)),
         ("Market cap", big_money(fm.get("market_cap"), sym)), ("RSI", num(tm.get("rsi"), 0)),
@@ -280,6 +327,40 @@ document.querySelectorAll('table.sortable th').forEach(function(th, col){
 """
 
 
+CAP_RANK = {"Large": 0, "Mid": 1, "Small": 2}
+
+
+def _sector_html(scan: ScanResult) -> str:
+    rows = sector_summary(scan)
+    if not rows:
+        return '<p class="muted">No sector data.</p>'
+    limit = scan.screen.max_pe
+    sizes = " + ".join(scan.screen.caps).lower() + " caps" if scan.screen.caps else "stocks"
+    lim = f"P/E ≤ {limit:g}" if limit is not None else "With a P/E"
+    out = []
+    for r in rows:
+        cheap = limit is not None and r["median_pe"] is not None and r["median_pe"] <= limit
+        tag = ' <span class="badge buy">below limit</span>' if cheap else ""
+        best = ", ".join(f"{_tick(b.ticker, scan.market.suffix)} ({b.rating.lower()} {b.score:.0f})"
+                         for b in r["best"])
+        out.append(
+            "<tr>"
+            f"<td>{_e(r['sector'])}{tag}</td>"
+            f'<td class="num">{r["stocks"]}</td>'
+            f'<td class="num" data-v="{r["median_pe"] if r["median_pe"] is not None else 9999}">'
+            f"{_e(num(r['median_pe']))}</td>"
+            f'<td class="num">{r["under_limit"]} of {r["stocks"]}</td>'
+            f"<td>{_e(best or '-')}</td>"
+            "</tr>"
+        )
+    return (f'<p class="small muted">Median trailing P/E of the {_e(sizes)} in this scan, cheapest sector first. '
+            "A low P/E alone is not a buy signal: banks, metals and oil companies usually trade cheaper than "
+            "consumer or tech companies.</p>"
+            '<div class="tablewrap"><table class="sortable"><thead><tr><th>Sector</th><th class="num">Stocks</th>'
+            f'<th class="num">Median P/E</th><th class="num">{_e(lim)}</th><th>Best value stocks (rating, score)</th>'
+            f"</tr></thead><tbody>{''.join(out)}</tbody></table></div>")
+
+
 def write_html(scan: ScanResult, path: Path, top: int = 10) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     mk, rg, st = scan.market, scan.regime, scan.strategy
@@ -304,6 +385,8 @@ def write_html(scan: ScanResult, path: Path, top: int = 10) -> Path:
             f'<td class="num">{i}</td><td><strong>{_e(s.ticker)}</strong></td><td>{_e(s.name)}</td>'
             f"<td>{_e(s.sector)}</td>"
             f'<td class="num" data-v="{s.price or 0}">{_e(money(s.price, sym))}</td>'
+            f'<td class="num" data-v="{s.pe if s.pe is not None else 9999}">{_e(_pe(s))}</td>'
+            f'<td data-v="{CAP_RANK.get(s.cap, 9)}">{_e(s.cap or "-")}</td>'
             f'<td data-v="{s.score or 0}">{_bar(s.score)}</td>'
             f'<td data-v="{s.fundamental.score or 0}">{_bar(s.fundamental.score)}</td>'
             f'<td data-v="{s.technical.score or 0}">{_bar(s.technical.score)}</td>'
@@ -314,6 +397,14 @@ def write_html(scan: ScanResult, path: Path, top: int = 10) -> Path:
             f'<td class="small muted">{_e(why)}</td>'
             "</tr>"
         )
+    screened = ""
+    if scan.screened:
+        pe_out = sum(1 for x in scan.screened if any("P/E" in r or "Loss" in r for r in x.screened_out))
+        cap_out = sum(1 for x in scan.screened if not x.cap_ok)
+        screened = (f'<p class="small muted">{len(scan.screened)} stocks left out by your filters '
+                    f"({pe_out} on P/E, {cap_out} on company size). They are listed in the CSV.</p>")
+    sectors = _sector_html(scan)
+    filters = f'<p class="small"><strong>{_e(_screen_line(scan))}</strong></p>' if scan.screen.active else ""
     failed = ""
     if scan.failed:
         failed = ('<p class="small muted">Skipped (no data): '
@@ -342,17 +433,20 @@ def write_html(scan: ScanResult, path: Path, top: int = 10) -> Path:
 <h2>2. Strategy</h2>
 <div class="panel"><strong>{_e(st.title)}</strong>{auto}<p>{_e(st.description)}</p>
 <p class="small muted">Final score = {st.composite[0]:.0%} fundamental + {st.composite[1]:.0%} technical.
-Fundamental pillars: {_e(fw)}. Technical pillars: {_e(tw)}.</p>{capital}</div>
+Fundamental pillars: {_e(fw)}. Technical pillars: {_e(tw)}.</p>{filters}{capital}</div>
 <h2>3. Best stocks right now ({len(picks)})</h2>
 <div class="cards">{cards}</div>
-<h2>4. All stocks ranked</h2>
+<h2>4. Sector valuations</h2>
+{sectors}
+<h2>5. All stocks ranked</h2>
 <p class="small muted">Click a column heading to sort.</p>
 <div class="tablewrap"><table class="sortable"><thead><tr>
-<th class="num">#</th><th>Ticker</th><th>Name</th><th>Sector</th><th class="num">Price</th><th>Score</th><th>Fund.</th>
+<th class="num">#</th><th>Ticker</th><th>Name</th><th>Sector</th><th class="num">Price</th><th class="num">P/E</th>
+<th>Cap</th><th>Score</th><th>Fund.</th>
 <th>Tech.</th><th>Rating</th><th>Action</th><th class="num">RSI</th><th>Main concern / why avoided</th>
 </tr></thead><tbody>{''.join(rows)}</tbody></table></div>
-{failed}
-<h2>5. How the scores work</h2>
+{screened}{failed}
+<h2>6. How the scores work</h2>
 <div class="panel small">
 <p><strong>Fundamental score</strong> (0-100): quality (ROE, margins, ROA), financial strength (debt/equity,
 current ratio, free-cash-flow margin), growth (revenue, earnings, forward EPS), valuation (P/E, forward P/E, PEG,
